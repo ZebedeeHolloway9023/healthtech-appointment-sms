@@ -1,0 +1,12 @@
+{
+  "name": "healthtech-appointment-sms",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/appointment_alert.ts",
+    "test": "tsx --test src/appointment_alert.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": { "zod": "^3.23.8" },
+  "devDependencies": { "@types/node": "^22.10.0", "tsx": "^4.19.0", "typescript": "^5.7.0" }
+}
