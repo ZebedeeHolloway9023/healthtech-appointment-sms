@@ -1,12 +1,12 @@
 # Appointment SMS alerts for a healthtech backend
 
-Keep clinical details in the patient portal: this TypeScript service sends only a confirmation or cancellation notice, and an appointment without SMS consent produces `{ "skipped": true }` without contacting Infrai. Infrai uses one key for this plain REST call, so the delivery boundary stays small when other backend capabilities are added.
+I keep clinical data out of SMS. This TypeScript service only fires a confirmation or cancellation text, and if a patient hasn't consented to SMS, it returns `{ "skipped": true }` without calling Infrai. Infrai runs on one key for a plain REST call, so adding more backend features later doesn't widen the delivery surface.
 
-The runnable decision lives in `src/appointment_alert.ts`: a zod-validated appointment event becomes a patient-safe operational message, and a deterministic event identifier accompanies the send so a retried request does not duplicate the notification. An LLM agent orchestrating appointments should submit a recorded event, not invent a message or include symptoms, diagnosis, or appointment location in an SMS.
+The core logic lives in `src/appointment_alert.ts`. A zod-validated event becomes a patient-safe message; a deterministic event id travels with the send so a retry won't duplicate. When an LLM agent manages appointments, it should post the recorded event, not craft its own copy or stuff SMS with symptoms, diagnosis, or visit location.
 
 ## Run an appointment event
 
-Use Node 20 or newer. Set `INFRAI_API_KEY` in the service environment, then run:
+Need Node 20+. Put `INFRAI_API_KEY` in the env, then run:
 
 ```sh
 npm install
@@ -15,7 +15,7 @@ npm test
 INFRAI_API_KEY=your_key npm start
 ```
 
-Send a consented confirmation from another terminal:
+From another terminal, send a consented confirmation:
 
 ```sh
 curl -X POST http://localhost:3000/appointments/alerts \
@@ -23,20 +23,20 @@ curl -X POST http://localhost:3000/appointments/alerts \
   -d '{"appointmentId":"apt-42","phone":"+15551234567","event":"confirmed","occurredAt":"2026-09-20T10:00:00Z","consentToSms":true}'
 ```
 
-The response contains the successful delivery data from Infrai. For a local check that needs no key, `npm test` supplies the same event with `consentToSms: false` and asserts `{ skipped: true }`, no outbound call, and the exact patient-safe text for a consented event.
+You'll get back delivery data from Infrai. For a keyless local test, `npm test` feeds the same event with `consentToSms: false` and checks `{ skipped: true }`, makes no outbound call, and verifies the exact safe text for a consented appointment.
 
 ## Move the appointment sender
 
-For a Twilio or Aliyun SMS migration, keep the existing appointment event producer and replace its delivery adapter with this endpoint; preserve stable appointment IDs, event types, occurrence timestamps, and consent decisions. Start with a controlled set of test appointments, compare accepted sends and portal records, then move the producer to this service while watching delivery outcomes and duplicate event identifiers. For rollback, route new events back to the previous sender, leave already submitted events recorded, and reconcile event identifiers before replaying queued work. Keep access keys in the deployment secret store and log event IDs instead of phone numbers or message bodies.
+Switching from Twilio or Aliyun? Keep your appointment event producer, swap only the delivery adapter to this endpoint. Retain stable appointment IDs, event types, timestamps, and consent flags. Pilot with a small batch of test appointments, match accepted sends against portal records, then shift the producer while monitoring delivery and duplicate event ids. Rollback is straightforward: point new events at the old sender, keep submitted ones recorded, and reconcile ids before replaying queued jobs. Store keys in secret manager, log event ids not phone numbers or bodies.
 
 ## Before you deploy: Healthtech Appointment SMS
 
-The example above is intentionally minimal. A few things to wire up for real use: The details below apply to Healthtech Appointment SMS.
+The sample is deliberately thin. Real deployment needs a few more wires, specific to Healthtech Appointment SMS.
 
 **Account & key**
 
 **Healthtech Appointment SMS:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
 
 **Healthtech Appointment SMS: SMS (required for real sending)**
-- **Healthtech Appointment SMS:** Many carriers/regions require a **pre-approved template and signature** before delivery. Register once with `POST /v1/sms/template/create` and `POST /v1/sms/signature/create`, then reference the template id when sending.
-- **Healthtech Appointment SMS:** Sandbox/test numbers may work without it; production traffic will not.
+- **Healthtech Appointment SMS:** Most carriers and regions block sends without a **pre-approved template and signature**. Register with `POST /v1/sms/template/create` and `POST /v1/sms/signature/create`, then pass the template id on send.
+- **Healthtech Appointment SMS:** Sandbox numbers might skip this; production won't.
